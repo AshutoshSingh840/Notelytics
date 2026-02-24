@@ -3,6 +3,7 @@ import Flashcard from '../models/Flashcard.js';
 import Quiz from '../models/Quiz.js';
 import { extractTextFromPDF } from '../utils/pdfParser.js';
 import { chunkText } from '../utils/textChunker.js';
+import { logStudyActivity } from '../utils/studyActivity.js';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
 
@@ -42,6 +43,13 @@ export const uploadDocument = async (req, res, next) => {
       filePath: fileUrl, // Store the URL instead of the local path
       fileSize: req.file.size,
       status: 'processing'
+    });
+
+    await logStudyActivity({
+      userId: req.user._id,
+      activityType: 'document_upload'
+    }).catch((activityError) => {
+      console.error('Failed to log document upload activity:', activityError.message);
     });
 
     // Process PDF in background (in production, use a queue like Bull)
@@ -173,6 +181,13 @@ export const getDocument = async (req, res, next) => {
     // Update last accessed
     document.lastAccessed = Date.now();
     await document.save();
+
+    await logStudyActivity({
+      userId: req.user._id,
+      activityType: 'document_view'
+    }).catch((activityError) => {
+      console.error('Failed to log document view activity:', activityError.message);
+    });
 
     // Combine document data with counts
     const documentData = document.toObject();

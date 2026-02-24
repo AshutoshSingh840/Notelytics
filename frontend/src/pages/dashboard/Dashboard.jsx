@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Spinner from "../../component/common/Spinner.jsx";
 import progressService from "../../services/progressService";
 import toast from "react-hot-toast";
@@ -11,7 +11,50 @@ import {
   CheckCircle2,
   CalendarDays,
   Target,
+  Activity,
 } from "lucide-react";
+
+const HEATMAP_LEVELS = [
+  { level: 0, label: "None", style: "bg-slate-100 border border-slate-200" },
+  { level: 1, label: "Light", style: "bg-emerald-100 border border-emerald-200" },
+  { level: 2, label: "Medium", style: "bg-emerald-300 border border-emerald-400" },
+  { level: 3, label: "High", style: "bg-emerald-500 border border-emerald-600" },
+  { level: 4, label: "Very High", style: "bg-emerald-700 border border-emerald-800" },
+];
+
+const HEATMAP_DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const getHeatmapLevelClass = (level) => {
+  switch (level) {
+    case 4:
+      return "bg-emerald-700 border border-emerald-800";
+    case 3:
+      return "bg-emerald-500 border border-emerald-600";
+    case 2:
+      return "bg-emerald-300 border border-emerald-400";
+    case 1:
+      return "bg-emerald-100 border border-emerald-200";
+    default:
+      return "bg-slate-100 border border-slate-200";
+  }
+};
+
+const parseDateKey = (value) => {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDateKey = (value) => {
+  const date = parseDateKey(value);
+  if (!date) return "Unknown date";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+};
 
 const DashboardPage = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -32,6 +75,95 @@ const DashboardPage = () => {
 
     fetchDashboardData();
   }, []);
+
+  const { heatmapGrid, heatmapRangeLabel, totalHeatmapActions } = useMemo(() => {
+    const fallbackDays = [];
+    const fallbackEnd = new Date();
+    fallbackEnd.setUTCHours(0, 0, 0, 0);
+
+    for (let offset = 29; offset >= 0; offset -= 1) {
+      const date = new Date(fallbackEnd);
+      date.setUTCDate(fallbackEnd.getUTCDate() - offset);
+      const key = date.toISOString().slice(0, 10);
+      fallbackDays.push({ date: key, totalActions: 0, level: 0 });
+    }
+
+    const sourceHeatmap = dashboardData?.recentActivity?.studyActivity?.heatmap;
+    const dayItems = Array.isArray(sourceHeatmap) && sourceHeatmap.length > 0 ? sourceHeatmap : fallbackDays;
+
+    const normalizedDays = dayItems
+      .map((item) => {
+        const dateObj = parseDateKey(item?.date);
+        if (!dateObj) return null;
+
+        const totalActions = Number.isFinite(item?.totalActions) ? item.totalActions : 0;
+        const level = Number.isFinite(item?.level)
+          ? Math.min(Math.max(item.level, 0), 4)
+          : totalActions > 9
+            ? 4
+            : totalActions > 5
+              ? 3
+              : totalActions > 2
+                ? 2
+                : totalActions > 0
+                  ? 1
+                  : 0;
+
+        return {
+          date: item.date,
+          totalActions,
+          level,
+          dateObj,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.dateObj - b.dateObj);
+
+    if (normalizedDays.length === 0) {
+      return {
+        heatmapGrid: [],
+        heatmapRangeLabel: "No activity data",
+        totalHeatmapActions: 0,
+      };
+    }
+
+    const firstDate = normalizedDays[0].dateObj;
+    const lastDate = normalizedDays[normalizedDays.length - 1].dateObj;
+    const dateMap = new Map(normalizedDays.map((item) => [item.date, item]));
+
+    const gridStart = new Date(firstDate);
+    gridStart.setUTCDate(gridStart.getUTCDate() - gridStart.getUTCDay());
+
+    const gridEnd = new Date(lastDate);
+    gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - gridEnd.getUTCDay()));
+
+    const columns = [];
+    let cursor = new Date(gridStart);
+    let weekColumn = [];
+
+    while (cursor <= gridEnd) {
+      const key = cursor.toISOString().slice(0, 10);
+      weekColumn.push(dateMap.get(key) || null);
+
+      if (weekColumn.length === 7) {
+        columns.push(weekColumn);
+        weekColumn = [];
+      }
+
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    const totalActions = normalizedDays.reduce((sum, day) => sum + day.totalActions, 0);
+    const rangeLabel = `${formatDateKey(normalizedDays[0].date)} - ${formatDateKey(
+      normalizedDays[normalizedDays.length - 1].date
+    )}`;
+
+    return {
+      heatmapGrid: columns,
+      heatmapRangeLabel: rangeLabel,
+      totalHeatmapActions: totalActions,
+    };
+  }, [dashboardData]);
 
   if (loading) return <Spinner />;
 
@@ -213,6 +345,70 @@ const DashboardPage = () => {
         </article>
       </section>
 
+      <section>
+        <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">30-Day Study Heatmap</h2>
+              <p className="text-sm text-slate-500">
+                {heatmapRangeLabel} - {totalHeatmapActions} total actions
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-700">
+              <Activity className="h-4 w-4" />
+              <span className="font-semibold">{overview.todayActions || 0}</span>
+              <span className="text-emerald-700/80">today</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="inline-flex gap-2">
+              <div className="grid grid-rows-7 gap-2 pr-2 text-[11px] font-medium text-slate-500">
+                {HEATMAP_DAY_LABELS.map((label, idx) => (
+                  <span key={label} className={idx % 2 === 0 ? "opacity-0" : ""}>
+                    {idx % 2 === 0 ? "." : label}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                {heatmapGrid.map((week, weekIndex) => (
+                  <div key={`week-${weekIndex}`} className="grid grid-rows-7 gap-2">
+                    {week.map((day, dayIndex) => (
+                      <div
+                        key={`week-${weekIndex}-day-${dayIndex}`}
+                        className={`h-4 w-4 rounded-[4px] transition-transform duration-150 hover:scale-110 ${
+                          day ? getHeatmapLevelClass(day.level) : "bg-transparent border border-transparent"
+                        }`}
+                        title={
+                          day
+                            ? `${day.totalActions} action${day.totalActions === 1 ? "" : "s"} on ${formatDateKey(day.date)}`
+                            : ""
+                        }
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Less</span>
+              {HEATMAP_LEVELS.map((item) => (
+                <span key={item.level} className={`h-3.5 w-3.5 rounded-[3px] ${item.style}`} title={item.label} />
+              ))}
+              <span>More</span>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Longest streak: <span className="font-semibold text-slate-700">{overview.longestStudyStreak || 0} days</span>
+            </p>
+          </div>
+        </article>
+      </section>
+
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
@@ -280,121 +476,3 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
-
-// import React, { useState, useEffect } from "react";
-// import Spinner from "../../component/common/Spinner";
-// import progressService from "../../services/progressService";
-// import toast from "react-hot-toast";
-// import {
-//   FileText,
-//   BookOpen,
-//   BrainCircuit,
-//   TrendingUp,
-//   Clock,
-// } from "lucide-react";
-
-// const DashboardPage = () => {
-//   const [dashboardData, setDashboardData] = useState(null);
-//   const [loading, setLoading] = useState(true);
-
-//   useEffect(() => {
-//     const fetchDashboardData = async () => {
-//       try {
-//         const data = await progressService.getDashboardData();
-//         setDashboardData(data.data);
-//       } catch (error) {
-//         toast.error("Failed to fetch dashboard data.");
-//         console.error(error);
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     fetchDashboardData();
-//   }, []);
-
-//   if (loading) return <Spinner />;
-
-//   if (!dashboardData || !dashboardData.overview) {
-//     return (
-//       <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500">
-//         <TrendingUp className="w-10 h-10 mb-4" />
-//         <p className="text-lg font-medium">No dashboard data available.</p>
-//       </div>
-//     );
-//   }
-
-//   const stats = [
-//     {
-//       label: "Total Documents",
-//       value: dashboardData.overview.totalDocuments,
-//       icon: FileText,
-//       gradient: "from-blue-400 to-cyan-500",
-//       shadowColor: "shadow-blue-500/25",
-//     },
-//     {
-//       label: "Total Flashcards",
-//       value: dashboardData.overview.totalFlashcards,
-//       icon: BookOpen,
-//       gradient: "from-purple-400 to-pink-500",
-//       shadowColor: "shadow-purple-500/25",
-//     },
-//     {
-//       label: "Total Quizzes",
-//       value: dashboardData.overview.totalQuizzes,
-//       icon: BrainCircuit,
-//       gradient: "from-emerald-400 to-teal-500",
-//       shadowColor: "shadow-emerald-500/25",
-//     },
-//     {
-//       label: "Study Time (hrs)",
-//       value: dashboardData.overview.totalStudyTime || 0,
-//       icon: Clock,
-//       gradient: "from-orange-400 to-red-500",
-//       shadowColor: "shadow-orange-500/25",
-//     },
-//   ];
-
-//   return (
-//     <div className="min-h-screen bg-gray-50 p-6">
-//       <div className="max-w-6xl mx-auto">
-//         {/* Header */}
-//         <div className="mb-8">
-//           <h1 className="text-3xl font-bold text-gray-800">
-//             Dashboard Overview
-//           </h1>
-//           <p className="text-gray-500 mt-2">
-//             Track your learning progress and statistics
-//           </p>
-//         </div>
-
-//         {/* Stats Grid */}
-//         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-//           {stats.map((stat, index) => {
-//             const Icon = stat.icon;
-
-//             return (
-//               <div
-//                 key={index}
-//                 className={`bg-white rounded-2xl p-6 shadow-lg ${stat.shadowColor} hover:scale-105 transition-transform duration-300`}
-//               >
-//                 <div
-//                   className={`w-12 h-12 rounded-xl bg-gradient-to-r ${stat.gradient} flex items-center justify-center text-white mb-4`}
-//                 >
-//                   <Icon className="w-6 h-6" />
-//                 </div>
-
-//                 <h2 className="text-gray-500 text-sm">{stat.label}</h2>
-//                 <p className="text-2xl font-bold text-gray-800 mt-1">
-//                   {stat.value}
-//                 </p>
-//               </div>
-//             );
-//           })}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default DashboardPage;
