@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import toast from "react-hot-toast";
 import Spinner from "../../component/common/Spinner.jsx";
 import { getQuizById, submitQuizAnswers } from "../../services/quizService.js";
+import { launchConfetti } from "../../utils/confetti.js";
 
 const QuizAttemptPage = () => {
   const { quizId } = useParams();
@@ -75,7 +76,11 @@ const QuizAttemptPage = () => {
       setSubmitting(true);
       const response = await submitQuizAnswers(quizId, payload);
       toast.success(`Quiz submitted. Score: ${response?.data?.score ?? 0}%`);
-      navigate(`/quizzes/${quizId}/results?documentId=${documentId || ""}`);
+      launchConfetti();
+      const params = new URLSearchParams();
+      if (documentId) params.set("documentId", documentId);
+      params.set("celebrate", "1");
+      navigate(`/quizzes/${quizId}/results?${params.toString()}`);
     } catch (error) {
       toast.error(error?.details?.error || error?.message || "Failed to submit quiz.");
     } finally {

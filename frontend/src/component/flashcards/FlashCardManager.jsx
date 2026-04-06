@@ -13,6 +13,14 @@ import {
 } from "../../services/flashcardService.js";
 import Spinner from "../common/Spinner.jsx";
 
+const deriveRatingFromResponseTime = (responseTimeMs) => {
+  if (!Number.isFinite(responseTimeMs) || responseTimeMs <= 0) return "good";
+  if (responseTimeMs <= 4000) return "easy";
+  if (responseTimeMs <= 9000) return "good";
+  if (responseTimeMs <= 16000) return "hard";
+  return "again";
+};
+
 const FlashCardManager = ({ documentId }) => {
   const [sets, setSets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,11 +32,25 @@ const FlashCardManager = ({ documentId }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [starLoading, setStarLoading] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [questionShownAt, setQuestionShownAt] = useState(Date.now());
 
   const currentCard = useMemo(
     () => activeSet?.cards?.[currentIndex] || null,
     [activeSet, currentIndex]
   );
+  const totalCards = activeSet?.cards?.length || 0;
+  const reviewedCards = (activeSet?.cards || []).filter((card) => (card.reviewCount || 0) > 0).length;
+  const dueCards = (activeSet?.cards || []).filter((card) => {
+    if (!card.nextReviewAt) return true;
+    return new Date(card.nextReviewAt) <= new Date();
+  }).length;
+  const deckProgress = totalCards > 0 ? Math.round((reviewedCards / totalCards) * 100) : 0;
+
+  useEffect(() => {
+    if (!isFlipped) {
+      setQuestionShownAt(Date.now());
+    }
+  }, [currentCard?._id, isFlipped]);
 
   const fetchSets = async () => {
     if (!documentId) {
@@ -108,7 +130,13 @@ const FlashCardManager = ({ documentId }) => {
     if (!isFlipped) {
       try {
         setReviewLoading(true);
-        const response = await reviewFlashcardById(currentCard._id);
+        const responseTimeMs = Date.now() - questionShownAt;
+        const rating = deriveRatingFromResponseTime(responseTimeMs);
+
+        const response = await reviewFlashcardById(currentCard._id, {
+          rating,
+          responseTimeMs,
+        });
         updateSetInState(response?.data);
       } catch (error) {
         toast.error(error?.details?.error || error?.message || "Failed to update review.");
@@ -240,19 +268,39 @@ const FlashCardManager = ({ documentId }) => {
         starLoading={starLoading}
       />
 
+      <section className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center gap-3 text-sm sm:text-base">
+          <span className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700">
+            Card {currentIndex + 1} / {totalCards}
+          </span>
+          <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">
+            Reviewed {reviewedCards}
+          </span>
+          <span className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 font-semibold text-amber-700">
+            Due {dueCards}
+          </span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+            style={{ width: `${deckProgress}%` }}
+          />
+        </div>
+      </section>
+
       <div className="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
           onClick={handlePrev}
           disabled={currentIndex === 0 || reviewLoading}
-          className="inline-flex h-11 sm:h-12 items-center gap-2 rounded-xl sm:rounded-2xl bg-slate-100 px-4 sm:px-6 text-sm sm:text-base font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 sm:h-12 items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 text-sm sm:text-base font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <ChevronLeft className="h-5 w-5" />
           Previous
         </button>
 
-        <div className="inline-flex h-11 sm:h-12 items-center rounded-xl sm:rounded-2xl border border-slate-300 px-4 sm:px-6 text-sm sm:text-base font-semibold text-slate-700">
-          {currentIndex + 1} / {activeSet.cards?.length || 0}
+        <div className="inline-flex h-11 sm:h-12 items-center rounded-xl sm:rounded-2xl border border-emerald-200 bg-emerald-50 px-4 sm:px-6 text-sm sm:text-base font-semibold text-emerald-700">
+          {currentIndex + 1} / {activeSet.cards?.length || 0} {reviewLoading ? "- Updating model..." : ""}
         </div>
 
         <button
@@ -263,7 +311,7 @@ const FlashCardManager = ({ documentId }) => {
             currentIndex >= activeSet.cards.length - 1 ||
             reviewLoading
           }
-          className="inline-flex h-11 sm:h-12 items-center gap-2 rounded-xl sm:rounded-2xl bg-slate-100 px-4 sm:px-6 text-sm sm:text-base font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 sm:h-12 items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 text-sm sm:text-base font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Next
           <ChevronRight className="h-5 w-5" />

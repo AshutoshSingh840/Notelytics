@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BookOpen } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import Spinner from "../../component/common/Spinner.jsx";
 import { getQuizResults } from "../../services/quizService.js";
 import QuizScoreSummary from "../../component/quizzes/results/QuizScoreSummary.jsx";
 import QuizQuestionReviewCard from "../../component/quizzes/results/QuizQuestionReviewCard.jsx";
+import { launchConfetti } from "../../utils/confetti.js";
 
 const QuizResultsPage = () => {
   const { quizId } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [resultData, setResultData] = useState(null);
 
@@ -50,6 +52,19 @@ const QuizResultsPage = () => {
   const backHref = backDocumentId ? `/documents/${backDocumentId}` : "/documents";
   const documentTitle =
     typeof quiz?.document === "object" ? quiz?.document?.title : "Document";
+
+  useEffect(() => {
+    if (searchParams.get("celebrate") !== "1") return;
+
+    launchConfetti();
+
+    const params = new URLSearchParams();
+    if (documentIdFromQuery) params.set("documentId", documentIdFromQuery);
+
+    navigate(`/quizzes/${quizId}/results${params.toString() ? `?${params.toString()}` : ""}`, {
+      replace: true,
+    });
+  }, [searchParams, navigate, quizId, documentIdFromQuery]);
 
   if (loading) {
     return (

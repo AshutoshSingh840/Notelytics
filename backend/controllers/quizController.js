@@ -93,31 +93,89 @@ export const submitQuiz = async (req, res, next) => {
     }
 
     // Process answers
+    const quizQuestionCount = quiz.questions.length;
+    const seenQuestionIndexes = new Set();
+    const normalizedAnswers = [];
+
+    for (const answer of answers) {
+      if (!answer || typeof answer !== 'object') {
+        return res.status(400).json({
+          success: false,
+          error: 'Each answer must be an object with questionIndex and selectedAnswer',
+          statusCode: 400
+        });
+      }
+
+      const questionIndex = Number(answer.questionIndex);
+      const selectedAnswer =
+        typeof answer.selectedAnswer === 'string'
+          ? answer.selectedAnswer.trim()
+          : '';
+
+      if (
+        !Number.isInteger(questionIndex) ||
+        questionIndex < 0 ||
+        questionIndex >= quizQuestionCount
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid questionIndex: ${answer.questionIndex}`,
+          statusCode: 400
+        });
+      }
+
+      if (seenQuestionIndexes.has(questionIndex)) {
+        return res.status(400).json({
+          success: false,
+          error: `Duplicate answer for questionIndex: ${questionIndex}`,
+          statusCode: 400
+        });
+      }
+
+      if (!selectedAnswer) {
+        return res.status(400).json({
+          success: false,
+          error: `selectedAnswer is required for questionIndex: ${questionIndex}`,
+          statusCode: 400
+        });
+      }
+
+      const question = quiz.questions[questionIndex];
+      if (!question.options.includes(selectedAnswer)) {
+        return res.status(400).json({
+          success: false,
+          error: `selectedAnswer is not a valid option for questionIndex: ${questionIndex}`,
+          statusCode: 400
+        });
+      }
+
+      seenQuestionIndexes.add(questionIndex);
+      normalizedAnswers.push({
+        questionIndex,
+        selectedAnswer,
+        correctAnswer: question.correctAnswer
+      });
+    }
+
     let correctCount = 0;
     const userAnswers = [];
 
-    answers.forEach(answer => {
-      const { questionIndex, selectedAnswer } = answer;
+    normalizedAnswers.forEach(answer => {
+      const isCorrect = answer.selectedAnswer === answer.correctAnswer;
+      if (isCorrect) correctCount++;
 
-      if (questionIndex < quiz.questions.length) {
-        const question = quiz.questions[questionIndex];
-        const isCorrect = selectedAnswer === question.correctAnswer;
-
-        if (isCorrect) correctCount++;
-
-        userAnswers.push({
-          questionIndex,
-          selectedAnswer,
-          isCorrect,
-          answeredAt: new Date()
-        });
-      }
+      userAnswers.push({
+        questionIndex: answer.questionIndex,
+        selectedAnswer: answer.selectedAnswer,
+        isCorrect,
+        answeredAt: new Date()
+      });
     });
 
     // Calculate score
-    const score = Math.round(
-      (correctCount / quiz.totalQuestions) * 100
-    );
+    const score = quiz.totalQuestions > 0
+      ? Math.round((correctCount / quiz.totalQuestions) * 100)
+      : 0;
 
     // Update quiz
     quiz.userAnswers = userAnswers;

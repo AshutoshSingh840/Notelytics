@@ -66,6 +66,19 @@ const FlashCardListPage = () => {
           const totalCards = setItem?.cards?.length || 0;
           const reviewedCards = (setItem?.cards || []).filter((card) => (card.reviewCount || 0) > 0).length;
           const progress = totalCards > 0 ? Math.round((reviewedCards / totalCards) * 100) : 0;
+          const avgMastery =
+            totalCards > 0
+              ? Math.round(
+                  ((setItem?.cards || []).reduce(
+                    (sum, card) => sum + (card.masteryScore || 0),
+                    0
+                  ) / totalCards) * 100
+                )
+              : 0;
+          const dueCount = (setItem?.cards || []).filter((card) => {
+            if (!card.nextReviewAt) return true;
+            return new Date(card.nextReviewAt) <= new Date();
+          }).length;
           const documentId =
             typeof setItem?.documentId === "object" ? setItem.documentId?._id : setItem?.documentId;
           const title =
@@ -80,21 +93,29 @@ const FlashCardListPage = () => {
                 <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-600 shadow-sm">
                   <BookOpen className="h-7 w-7 drop-shadow-[0_2px_2px_rgba(16,185,129,0.18)]" />
                 </div>
-                <div>
-                  <h3 className="text-lg sm:text-xl font-semibold text-slate-900">{title || "Flashcard Set"}</h3>
-                  <p className="mt-1 text-sm uppercase tracking-[0.08em] text-slate-500">
+                <div className="min-w-0 flex-1">
+                  <h3 className="break-words text-lg sm:text-xl font-semibold leading-snug text-slate-900">
+                    {title || "Flashcard Set"}
+                  </h3>
+                  <p className="mt-1 text-xs sm:text-sm uppercase tracking-[0.06em] text-slate-500">
                     {formatCreatedAt(setItem.createdAt)}
                   </p>
                 </div>
               </div>
 
-              <div className="mb-4 flex items-center gap-3">
-                <span className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm sm:text-base font-medium text-slate-700">
+              <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                <span className="rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-700 text-center">
                   {totalCards} Cards
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm sm:text-base font-semibold text-emerald-700">
-                  <TrendingUp className="h-4 w-4 text-teal-600" />
+                <span className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs sm:text-sm font-semibold text-emerald-700">
+                  <TrendingUp className="h-3.5 w-3.5 text-teal-600" />
                   {progress}%
+                </span>
+                <span className="rounded-xl border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-xs sm:text-sm font-semibold text-teal-700 text-center">
+                  Mastery {avgMastery}%
+                </span>
+                <span className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs sm:text-sm font-semibold text-amber-700 text-center">
+                  Due {dueCount}
                 </span>
               </div>
 

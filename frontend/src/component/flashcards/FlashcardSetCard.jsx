@@ -10,6 +10,18 @@ const FlashcardSetCard = ({ setItem, onOpen, onDelete }) => {
       })
     : "Unknown date";
 
+  const totalCards = setItem.cards?.length || 0;
+  const avgMastery =
+    totalCards > 0
+      ? Math.round(
+          ((setItem.cards || []).reduce((sum, card) => sum + (card.masteryScore || 0), 0) / totalCards) * 100
+        )
+      : 0;
+  const dueCount = (setItem.cards || []).filter((card) => {
+    if (!card.nextReviewAt) return true;
+    return new Date(card.nextReviewAt) <= new Date();
+  }).length;
+
   return (
     <article
       onClick={() => onOpen(setItem)}
@@ -45,9 +57,17 @@ const FlashcardSetCard = ({ setItem, onOpen, onDelete }) => {
       </div>
 
       <div className="border-t border-slate-100 pt-4">
-        <span className="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xl font-semibold text-emerald-700">
-          {setItem.cards?.length || 0} cards
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xl font-semibold text-emerald-700">
+            {totalCards} cards
+          </span>
+          <span className="inline-flex rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-lg font-semibold text-teal-700">
+            Mastery {avgMastery}%
+          </span>
+          <span className="inline-flex rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-lg font-semibold text-amber-700">
+            Due {dueCount}
+          </span>
+        </div>
       </div>
     </article>
   );

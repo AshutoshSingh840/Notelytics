@@ -47,7 +47,6 @@ import aiRoutes from "./routes/aiRoutes.js";
 import quizRoutes from "./routes/quizRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 
-app.use(errorhandler); // Global error handler
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use("/api/auth", authRoutes);
@@ -66,6 +65,9 @@ app.use((req, res) => {
     statusCode: 404,
   });
 });
+
+// ================= Global error handler =================
+app.use(errorhandler);
 
 // ================= Start server =================
 const PORT = process.env.PORT || 8000;

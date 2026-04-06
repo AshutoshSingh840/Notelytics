@@ -1,5 +1,5 @@
 import express from "express";
-import { body } from "express-validator";
+import { body, validationResult } from "express-validator";
 
 import {
   register,
@@ -12,6 +12,18 @@ import {
 import protect from "../middleware/auth.js";
 
 const router = express.Router();
+
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (errors.isEmpty()) return next();
+
+  return res.status(400).json({
+    success: false,
+    error: errors.array()[0].msg,
+    errors: errors.array(),
+    statusCode: 400,
+  });
+};
 
 // ================= Register Validation =================
 const registerValidation = [
@@ -43,8 +55,8 @@ const loginValidation = [
 ];
 
 // ================= Public Routes =================
-router.post("/register", registerValidation, register);
-router.post("/login", loginValidation, login);
+router.post("/register", registerValidation, handleValidationErrors, register);
+router.post("/login", loginValidation, handleValidationErrors, login);
 
 // ================= Protected Routes =================
 router.get("/profile", protect, getProfile);

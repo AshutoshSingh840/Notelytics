@@ -16,21 +16,20 @@ const flashcardSchema = new mongoose.Schema(
 
     cards: [
       {
-        question: { 
-          type: String, 
-          required: true 
+        question: {
+          type: String,
+          required: true,
         },
 
-        answer: { 
-          type: String, 
-          required: true 
+        answer: {
+          type: String,
+          required: true,
         },
 
         difficulty: {
           type: String,
           enum: ["easy", "medium", "hard"],
           default: "medium",
-          // ⚠️ WARNING: Not required, can be undefined before default
         },
 
         lastReviewed: {
@@ -41,13 +40,69 @@ const flashcardSchema = new mongoose.Schema(
         reviewCount: {
           type: Number,
           default: 0,
-          // ⚠️ WARNING: No min validation (can become negative)
+          min: 0,
         },
 
         isStarred: {
           type: Boolean,
           default: false,
         },
+
+        masteryScore: {
+          type: Number,
+          default: 0.25,
+          min: 0,
+          max: 1,
+        },
+
+        masteryConfidence: {
+          type: Number,
+          default: 0.35,
+          min: 0,
+          max: 1,
+        },
+
+        avgResponseTimeMs: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        intervalDays: {
+          type: Number,
+          default: 1,
+          min: 1,
+        },
+
+        nextReviewAt: {
+          type: Date,
+          default: Date.now,
+        },
+
+        reviewEvents: [
+          {
+            reviewedAt: {
+              type: Date,
+              default: Date.now,
+            },
+            rating: {
+              type: String,
+              enum: ["again", "hard", "good", "easy"],
+              default: "good",
+            },
+            responseTimeMs: {
+              type: Number,
+              default: 0,
+              min: 0,
+            },
+            predictedMastery: {
+              type: Number,
+              default: 0,
+              min: 0,
+              max: 1,
+            },
+          },
+        ],
       },
     ],
   },
@@ -56,12 +111,11 @@ const flashcardSchema = new mongoose.Schema(
   }
 );
 
-
-// Index for faster queries
 flashcardSchema.index({ userId: 1, documentId: 1 });
-// ⚠️ WARNING: Not unique — duplicate flashcard sets possible
-
+flashcardSchema.index({ userId: 1, "cards.nextReviewAt": 1 });
+flashcardSchema.index({ userId: 1, "cards.masteryScore": 1 });
 
 const Flashcard = mongoose.model("Flashcard", flashcardSchema);
 
 export default Flashcard;
+

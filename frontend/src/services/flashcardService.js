@@ -8,15 +8,21 @@ export const getAllFlashcardSets = async () =>
     return response.data;
   }, "Unable to fetch flashcards");
 
+export const getDueFlashcards = async () =>
+  executeServiceRequest(async () => {
+    const response = await api.get(API_PATHS.FLASHCARDS.GET_DUE);
+    return response.data;
+  }, "Unable to fetch due flashcards");
+
 export const getFlashcardsByDocumentId = async (documentId) =>
   executeServiceRequest(async () => {
     const response = await api.get(API_PATHS.FLASHCARDS.GET_BY_DOCUMENT_ID(documentId));
     return response.data;
   }, "Unable to fetch document flashcards");
 
-export const reviewFlashcardById = async (cardId) =>
+export const reviewFlashcardById = async (cardId, payload = {}) =>
   executeServiceRequest(async () => {
-    const response = await api.post(API_PATHS.FLASHCARDS.REVIEW(cardId));
+    const response = await api.post(API_PATHS.FLASHCARDS.REVIEW(cardId), payload);
     return response.data;
   }, "Unable to review flashcard");
 
@@ -31,3 +37,12 @@ export const deleteFlashcardSetById = async (id) =>
     const response = await api.delete(API_PATHS.FLASHCARDS.DELETE(id));
     return response.data;
   }, "Unable to delete flashcard set");
+
+export default {
+  getAllFlashcardSets,
+  getDueFlashcards,
+  getFlashcardsByDocumentId,
+  reviewFlashcardById,
+  toggleFlashcardStarById,
+  deleteFlashcardSetById,
+};

@@ -6,12 +6,15 @@ import documentService from "../../services/documentService";
 import Spinner from "../../component/common/Spinner";
 import toast from "react-hot-toast";
 import { ArrowLeft, ExternalLink } from "lucide-react";
+import { BASE_URL } from "../../utils/aiPath.js";
 import PageHeader from '../../component/common/PageHeader';
 import Tabs from '../../component/common/Tabs';
 import ChatInterface from "../../component/chat/ChatInterface";
 import AIActions from "../../component/ai/AIActions.jsx";
 import FlashCardManager from "../../component/flashcards/FlashCardManager.jsx";
 import QuizManager from "../../component/quizzes/QuizManager.jsx";
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
 const DocumentDetailPage = () => {
   const { id } = useParams();
@@ -38,23 +41,40 @@ const DocumentDetailPage = () => {
 
   // Helper to generate full PDF URL
   const getPdfUrl = () => {
-    if (!document?.data?.filePath) return null;
+    const rawFilePath = document?.data?.filePath;
+    if (!rawFilePath) return null;
 
-    const filePath = document.data.filePath;
+    const filePath = String(rawFilePath).trim();
+    if (!filePath) return null;
 
-    if (
-      filePath.startsWith("http://") ||
-      filePath.startsWith("https://")
-    ) {
+    const joinBaseWithPath = (base, path) => {
+      const normalizedBase = String(base || "").replace(/\/+$/, "");
+      const normalizedPath = String(path || "").replace(/^\/+/, "");
+      if (!normalizedBase || !normalizedPath) return null;
+      return `${normalizedBase}/${normalizedPath}`;
+    };
+
+    if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+      try {
+        const storedUrl = new URL(filePath);
+        const configuredApiUrl = new URL(BASE_URL);
+
+        // Backward compatibility: old records may store localhost links.
+        // If API base differs, point to the active API host while keeping path.
+        if (
+          LOCAL_HOSTS.has(storedUrl.hostname) &&
+          configuredApiUrl.origin !== storedUrl.origin
+        ) {
+          return `${configuredApiUrl.origin}${storedUrl.pathname}${storedUrl.search}${storedUrl.hash}`;
+        }
+      } catch (_) {
+        return filePath;
+      }
+
       return filePath;
     }
 
-    const baseUrl =
-      import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-    return `${baseUrl}${
-      filePath.startsWith("/") ? "" : "/"
-    }${filePath}`;
+    return joinBaseWithPath(BASE_URL, filePath);
   };
 
   /* ---------------------- TAB RENDER FUNCTIONS ---------------------- */

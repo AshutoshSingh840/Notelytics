@@ -3,6 +3,7 @@ import Button from "../common/Button.jsx";
 import Spinner from "../common/Spinner.jsx";
 import { getQuizById, submitQuizAnswers } from "../../services/quizService.js";
 import toast from "react-hot-toast";
+import { launchConfetti } from "../../utils/confetti.js";
 
 const QuizAttemptModal = ({ quizId, open, onClose, onSubmitted }) => {
   const [quiz, setQuiz] = useState(null);
@@ -67,6 +68,7 @@ const QuizAttemptModal = ({ quizId, open, onClose, onSubmitted }) => {
       setSubmitting(true);
       const response = await submitQuizAnswers(quizId, payload);
       toast.success(`Quiz submitted. Score: ${response?.data?.score ?? 0}%`);
+      launchConfetti();
       onSubmitted();
       onClose();
     } catch (error) {
